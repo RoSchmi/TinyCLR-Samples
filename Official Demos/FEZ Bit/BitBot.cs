@@ -8,8 +8,13 @@
 // P14 ultrasonic trig
 // P15 ultrasonic echo
 // P16 neopixel x3
-// P19 I2C for PWM PCA9685
+// P19 I2C for PWM PCA9685... address 0x41
 // P20 I2C for PWM PCA9685
+
+
+// ON PWM Chip channels
+// Ch12 Ch13 left motor
+// Ch14 Ch15 right motor
 
 using System;
 using System.Collections;
@@ -33,12 +38,16 @@ namespace GHIElectronics.TinyCLR.Yahboom.BitBot {
         private AdcChannel leftLineSensor, rightLineSensor;
         private WS2812 ws2812;
         public void SetColorLeds(int index, int red, int green, int blue) {
-            this.ws2812.SetColor(index, red, green , blue);
+            this.ws2812.SetColor(index, red, green, blue);
             this.ws2812.Draw();
         }
         public int ReadDistance() {
-            var time = this.pulseFeedback.GeneratePulse();
-            return (int) time.TotalMilliseconds;
+            var time = this.pulseFeedback.Trigger();
+            var microsecond = time.TotalMilliseconds * 1000.0;
+
+            var distance = microsecond * 0.036 / 2;
+
+            return (int)distance;
         }
         public double ReadLineSensor(bool left) {
             if (left)
@@ -76,11 +85,11 @@ namespace GHIElectronics.TinyCLR.Yahboom.BitBot {
             PwmChannel buzzer,
             AdcChannel leftLineSensor,
             AdcChannel rightLineSensor,
-            int distanceTrigPin,
-            int distanceEchoPin,
+            GpioPin distanceTrigPin,
+            GpioPin distanceEchoPin,
             GpioPin frontSensorEnable,
             AdcChannel frontSensorValue,
-            int colorLedPin) {
+            GpioPin colorLedPin) {
             this.pcaController = pcaController;
             this.buzzer = buzzer;
             this.pcaController.SetFrequency(50);
@@ -88,20 +97,18 @@ namespace GHIElectronics.TinyCLR.Yahboom.BitBot {
             this.frontSensorValue = frontSensorValue;
             this.leftLineSensor = leftLineSensor;
             this.rightLineSensor = rightLineSensor;
-            
-            this.pulseFeedback = new PulseFeedback(distanceTrigPin, distanceEchoPin, PulseFeedbackMode.DurationUntilEcho) {
+
+            this.pulseFeedback = new PulseFeedback(distanceTrigPin, distanceEchoPin, PulseFeedbackMode.EchoDuration) {
                 DisableInterrupts = false,
                 Timeout = TimeSpan.FromSeconds(1),
                 PulseLength = TimeSpan.FromTicks(100),
-                PulsePinValue = GpioPinValue.High,
-                EchoPinValue = GpioPinValue.High,
-                PulsePinDriveMode = GpioPinDriveMode.Output,
-                EchoPinDriveMode = GpioPinDriveMode.Input
+                PulseValue = GpioPinValue.High,
+                EchoValue = GpioPinValue.High,
             };
 
             this.frontSensorEnable.SetDriveMode(GpioPinDriveMode.Output);
             this.frontSensorEnable.Write(GpioPinValue.High);
-
+           
             this.ws2812 = new WS2812(colorLedPin, 3);
         }
         public void SetMotorSpeed(double left, double right) {
@@ -127,13 +134,11 @@ namespace GHIElectronics.TinyCLR.Yahboom.BitBot {
             }
 
         }
-        public void SetHeadlight(double red, double green, double blue) {
-            if (red > 1.0 || green > 1.0 || blue > 1.0)
-                throw new ArgumentException();
-            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C0, 0, (int)(red * 4095));
-            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C1, 0, (int)(green * 4095));
-            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C2, 0, (int)(blue * 4095));
+        public void SetHeadlight(int red, int green, int blue) {
+            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C0, 0, (int)(red * 16));
+            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C1, 0, (int)(green * 16));
+            this.pcaController.SetDutyCycle(PCA9685Controller.Channel.C2, 0, (int)(blue * 16));
 
-             }
+        }
     }
 }
